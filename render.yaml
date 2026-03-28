@@ -4,10 +4,3 @@ services:
     env: docker
     region: ohio
     plan: free
-    disk:
-      name: sqlite-data
-      mountPath: /var/data
-      sizeGB: 1
-    envVars:
-      - key: RENDER_DISK_PATH
-        value: /var/data
