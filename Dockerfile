@@ -15,3 +15,9 @@ COPY . /var/www/html/
 # Set permissions for Apache
 RUN chown -R www-data:www-data /var/www/html
 RUN chmod -R 775 /var/www/html
+
+# Prepare persistent data directory
+RUN mkdir -p /data
+
+# Fix permissions on runtime and start Apache
+CMD chown -R www-data:www-data /data && apache2-foreground
