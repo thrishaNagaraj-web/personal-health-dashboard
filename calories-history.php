@@ -1,12 +1,16 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
+require_once 'includes/csrf.php';
 requireLogin();
 
 $user_id = $_SESSION['user_id'];
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        die('Invalid request. Please go back and try again.');
+    }
     $calories = (int)$_POST['calories'];
     $meal_type = trim($_POST['meal_type'] ?? '');
     $log_date = $_POST['log_date'];
@@ -36,6 +40,7 @@ require_once 'includes/header.php';
             <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
         <?php endif; ?>
         <form method="POST" action="calories-history.php" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+            <?= csrfField() ?>
             <input type="hidden" name="action" value="add">
             <div class="form-group" style="margin-bottom: 0;">
                 <label for="calories">Calories (kcal)</label>

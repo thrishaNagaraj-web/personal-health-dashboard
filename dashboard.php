@@ -5,6 +5,67 @@ requireLogin();
 
 $user_id = $_SESSION['user_id'];
 $today = date('Y-m-d');
+$yesterday = date('Y-m-d', strtotime('-1 day'));
+
+function getBadgeHtml($today_val, $yesterday_val) {
+    if ($yesterday_val === false || $yesterday_val === null || $yesterday_val == 0) {
+        return '<span class="badge badge-muted">No data yesterday</span>';
+    }
+    if ($today_val == $yesterday_val) {
+        return '<span class="badge badge-muted">0% vs yesterday</span>';
+    }
+    $pct_change = round((($today_val - $yesterday_val) / $yesterday_val) * 100);
+    if ($pct_change > 0) {
+        return '<span class="badge badge-up">↑ ' . $pct_change . '% vs yesterday</span>';
+    } else {
+        return '<span class="badge badge-down">↓ ' . abs($pct_change) . '% vs yesterday</span>';
+    }
+}
+
+// Yesterday Data
+$stmt = $pdo->prepare("SELECT weight FROM weight_logs WHERE user_id = ? AND log_date = ? ORDER BY id DESC LIMIT 1");
+$stmt->execute([$user_id, $yesterday]);
+$yesterday_weight = $stmt->fetchColumn();
+
+$stmt = $pdo->prepare("SELECT SUM(amount_ml) FROM water_logs WHERE user_id = ? AND log_date = ?");
+$stmt->execute([$user_id, $yesterday]);
+$yesterday_water = $stmt->fetchColumn() ?: 0;
+
+$stmt = $pdo->prepare("SELECT SUM(calories) FROM calories_logs WHERE user_id = ? AND log_date = ?");
+$stmt->execute([$user_id, $yesterday]);
+$yesterday_calories = $stmt->fetchColumn() ?: 0;
+
+$stmt = $pdo->prepare("SELECT duration_mins FROM exercise_logs WHERE user_id = ? AND log_date = ? ORDER BY id DESC LIMIT 1");
+$stmt->execute([$user_id, $yesterday]);
+$yesterday_exercise = $stmt->fetchColumn() ?: 0;
+
+// Streak logic
+$stmt = $pdo->prepare("
+    SELECT DISTINCT log_date FROM (
+        SELECT log_date FROM water_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
+        UNION
+        SELECT log_date FROM calories_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
+        UNION
+        SELECT log_date FROM exercise_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
+        UNION
+        SELECT log_date FROM weight_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
+    )
+");
+$stmt->execute(['uid' => $user_id]);
+$active_dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+$streak = 0;
+for ($i = 0; $i < 30; $i++) {
+    $d = date('Y-m-d', strtotime("-$i days"));
+    if (in_array($d, $active_dates)) {
+        $streak++;
+    } else if ($i === 0) {
+        // Missing today doesn't break the streak
+    } else {
+        break;
+    }
+}
+
 // User Details (Height for BMI)
 $stmt = $pdo->prepare("SELECT height FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
@@ -35,60 +96,191 @@ $stmt = $pdo->prepare("SELECT activity, duration_mins FROM exercise_logs WHERE u
 $stmt->execute([$user_id]);
 $latest_exercise = $stmt->fetch();
 
+// Query last night's sleep in dashboard.php
+$stmt = $pdo->prepare("SELECT hours, quality FROM sleep_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 1");
+$stmt->execute([$user_id]);
+$last_sleep = $stmt->fetch();
+
+// Query today's mood
+$stmt = $pdo->prepare("SELECT mood FROM mood_logs WHERE user_id = ? AND log_date = ?");
+$stmt->execute([$user_id, $today]);
+$today_mood = $stmt->fetchColumn();
+
+$quality_emojis_short = [1 => '😴', 2 => '😐', 3 => '🙂', 4 => '😊', 5 => '🤩'];
+$mood_emojis = [1 => '😢', 2 => '😕', 3 => '😐', 4 => '🙂', 5 => '😄'];
+
+// --- Health Score Calculation ---
+$water_goal = 2000;
+$calorie_goal = 2000;
+$exercise_goal = 30;
+
+try {
+    $stmt = $pdo->prepare("SELECT water_goal, calorie_goal, exercise_goal FROM goals WHERE user_id = ?");
+    $stmt->execute([$user_id]);
+    $goals_row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($goals_row) {
+        $water_goal = $goals_row['water_goal'] ?: 2000;
+        $calorie_goal = $goals_row['calorie_goal'] ?: 2000;
+        $exercise_goal = $goals_row['exercise_goal'] ?: 30;
+    }
+} catch (Exception $e) { }
+
+$stmt = $pdo->prepare("SELECT SUM(duration_mins) FROM exercise_logs WHERE user_id = ? AND log_date = ?");
+$stmt->execute([$user_id, $today]);
+$today_exercise_mins = $stmt->fetchColumn() ?: 0;
+
+$water_score = min(($today_water / $water_goal) * 25, 25);
+$cal_diff = abs($today_calories - $calorie_goal);
+$cal_score = $cal_diff <= 200 ? 25 : max(0, 25 - ($cal_diff / 200) * 5);
+$exercise_score = min(($today_exercise_mins / $exercise_goal) * 25, 25);
+$streak_score = min($streak, 25);
+$health_score = round($water_score + $cal_score + $exercise_score + $streak_score);
+
+if ($health_score < 40) {
+    $score_msg = "Let's get moving! 💪";
+} else if ($health_score < 60) {
+    $score_msg = "Good start, keep going! 🙂";
+} else if ($health_score < 80) {
+    $score_msg = "You're doing well! 🌟";
+} else {
+    $score_msg = "Excellent day! 🏆";
+}
+// --------------------------------
+
 require_once 'includes/header.php';
 ?>
 
-<div style="max-width: 1000px; margin: 0 auto; padding: 2rem 0;">
-    <h2 style="margin-bottom: 2rem;">Welcome, <?= htmlspecialchars($_SESSION['username']) ?>!</h2>
+<div style="max-width: 1000px; margin: 0 auto; padding: clamp(1rem, 3vw, 2rem) 0;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: clamp(1rem, 3vw, 2rem);">
+        <h2 style="margin: 0;">Welcome, <?= htmlspecialchars($_SESSION['username']) ?>!</h2>
+        <?php if ($streak > 0): ?>
+            <div style="font-size: 1.25rem; font-weight: 700; background: var(--surface); padding: 0.5rem 1rem; border-radius: 999px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); color: #f97316;">
+                🔥 <?= $streak ?> Day Streak
+            </div>
+        <?php endif; ?>
+    </div>
     
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+    <style>
+    @keyframes scoreReveal {
+      from { --score: 0; }
+      to   { --score: <?= $health_score ?>; }
+    }
+    </style>
+    <div class="health-score-wrapper">
+      <div class="health-score-ring" style="--score: <?= $health_score ?>;">
+        <div class="score-inner">
+          <span class="score-number"><?= $health_score ?></span>
+          <span class="score-label">Health Score</span>
+        </div>
+      </div>
+      <p class="score-message"><?= $score_msg ?></p>
+    </div>
+
+    <div class="dashboard-grid">
         
-        <div class="card" style="text-align: center; display: flex; flex-direction: column; justify-content: space-between;">
+        <div class="card card-weight">
             <div>
-                <h3 style="color: #8b5cf6;">⚖️ Latest Weight</h3>
-                <p style="font-size: 2.5rem; margin: 1rem 0; color: #8b5cf6;">
-                    <?= htmlspecialchars($latest_weight) ?> <?= $latest_weight !== '--' ? '<span style="font-size: 1rem;">kg</span>' : '' ?>
-                </p>
+                <h3>⚖️ Latest Weight</h3>
+                <div class="card-kpi"><?= htmlspecialchars($latest_weight) ?></div>
+                <div class="card-unit">
+                    <?= $latest_weight !== '--' ? 'kg' : 'No target set' ?><br>
+                    <?= getBadgeHtml($latest_weight !== '--' ? $latest_weight : 0, $yesterday_weight) ?>
+                </div>
                 <?php if ($bmi): ?>
-                    <div style="background-color: var(--bg-color); padding: 0.5rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <div style="background-color: var(--background); padding: 0.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
                         <span style="font-weight: 600;">BMI: <?= htmlspecialchars($bmi) ?></span>
                     </div>
                 <?php else: ?>
-                    <div style="background-color: var(--bg-color); padding: 0.5rem; border-radius: 8px; margin-bottom: 1rem;">
-                        <a href="profile.php" style="color: var(--text-color); font-size: 0.9rem; text-decoration: underline;">Add height in Profile for BMI</a>
+                    <div style="background-color: var(--background); padding: 0.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <a href="profile.php" style="color: var(--text-main); font-size: 0.9rem; text-decoration: underline;">Add height in Profile for BMI</a>
                     </div>
                 <?php endif; ?>
             </div>
-            <a href="weight-history.php" class="btn btn-outline" style="padding: 0.5rem 1rem; border-color: #8b5cf6; color: #8b5cf6;">View History</a>
+            <a href="weight-history.php" class="btn btn-outline btn-block">View History</a>
         </div>
 
-        <div class="card" style="text-align: center;">
-            <h3>Water Today</h3>
-            <p style="font-size: 2.5rem; margin: 1rem 0; color: #3498db;">
-                <?= htmlspecialchars($today_water) ?> <span style="font-size: 1rem;">ml</span>
-            </p>
-            <a href="water-history.php" class="btn btn-outline" style="padding: 0.5rem 1rem;">Drink More</a>
+        <div class="card card-water">
+            <div>
+                <h3>💧 Water Today</h3>
+                <div class="card-kpi"><?= htmlspecialchars($today_water) ?></div>
+                <div class="card-unit">
+                    ml / <?= $water_goal ?> ml<br>
+                    <?= getBadgeHtml($today_water, $yesterday_water) ?>
+                </div>
+                <?php $water_pct = min(100, ($water_goal > 0 ? $today_water / $water_goal : 0) * 100); ?>
+                <div class="progress-bar-container">
+                    <div class="progress-fill" style="width: <?= $water_pct ?>%;"></div>
+                </div>
+            </div>
+            <a href="water-history.php" class="btn btn-outline btn-block">Drink More</a>
         </div>
 
-        <div class="card" style="text-align: center;">
-            <h3>Calories Today</h3>
-            <p style="font-size: 2.5rem; margin: 1rem 0; color: #e67e22;">
-                <?= htmlspecialchars($today_calories) ?> <span style="font-size: 1rem;">kcal</span>
-            </p>
-            <a href="calories-history.php" class="btn btn-outline" style="padding: 0.5rem 1rem;">Log Meal</a>
+        <div class="card card-calories">
+            <div>
+                <h3>🔥 Calories Today</h3>
+                <div class="card-kpi"><?= htmlspecialchars($today_calories) ?></div>
+                <div class="card-unit">
+                    kcal / 2000 kcal<br>
+                    <?= getBadgeHtml($today_calories, $yesterday_calories) ?>
+                </div>
+                <?php $cal_pct = min(100, ($calorie_goal > 0 ? $today_calories / $calorie_goal : 0) * 100); ?>
+                <div class="progress-bar-container">
+                    <div class="progress-fill" style="width: <?= $cal_pct ?>%;"></div>
+                </div>
+            </div>
+            <a href="calories-history.php" class="btn btn-outline btn-block">Log Meal</a>
         </div>
 
-        <div class="card" style="text-align: center;">
-            <h3>Latest Exercise</h3>
-            <p style="font-size: 1.5rem; margin: 1.5rem 0; color: #2ecc71;">
+        <div class="card card-exercise">
+            <div>
+                <h3>🏃 Latest Exercise</h3>
                 <?php if ($latest_exercise): ?>
-                    <?= htmlspecialchars($latest_exercise['activity']) ?><br>
-                    <span style="font-size: 1rem; color: #666;"><?= htmlspecialchars($latest_exercise['duration_mins']) ?> mins</span>
+                    <div class="card-kpi"><?= htmlspecialchars($latest_exercise['activity']) ?></div>
+                    <div class="card-unit">
+                        <?= htmlspecialchars($latest_exercise['duration_mins']) ?> mins<br>
+                        <?= getBadgeHtml($latest_exercise['duration_mins'], $yesterday_exercise) ?>
+                    </div>
+                    <?php $ex_pct = min(100, ($exercise_goal > 0 ? $latest_exercise['duration_mins'] / $exercise_goal : 0) * 100); ?>
+                    <div class="progress-bar-container">
+                        <div class="progress-fill" style="width: <?= $ex_pct ?>%;"></div>
+                    </div>
                 <?php else: ?>
-                    <span style="font-size: 1.5rem; color: #aaa;">--</span>
+                    <div class="card-kpi">--</div>
+                    <div class="card-unit">No activity today</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-fill" style="width: 0%;"></div>
+                    </div>
                 <?php endif; ?>
-            </p>
-            <a href="exercise-history.php" class="btn btn-outline" style="padding: 0.5rem 1rem;">Add Activity</a>
+            </div>
+            <a href="exercise-history.php" class="btn btn-outline btn-block">Add Activity</a>
+        </div>
+
+        <div class="card card-sleep">
+            <div>
+                <h3>🛌 Last Night's Sleep</h3>
+                <?php if ($last_sleep): ?>
+                    <div class="card-kpi"><?= htmlspecialchars($last_sleep['hours']) ?>h</div>
+                    <div class="card-unit" style="font-size: 1.5rem;"><?= $quality_emojis_short[$last_sleep['quality']] ?></div>
+                <?php else: ?>
+                    <div class="card-kpi">--</div>
+                    <div class="card-unit">No data</div>
+                <?php endif; ?>
+            </div>
+            <a href="sleep.php" class="btn btn-outline btn-block">Log Sleep</a>
+        </div>
+
+        <div class="card card-mood">
+            <div>
+                <h3>🧠 Today's Mood</h3>
+                <?php if ($today_mood): ?>
+                    <div class="card-kpi" style="font-size: 4rem;"><?= $mood_emojis[$today_mood] ?></div>
+                    <div class="card-unit">Logged</div>
+                <?php else: ?>
+                    <div class="card-kpi">--</div>
+                    <div class="card-unit">How are you feeling?</div>
+                <?php endif; ?>
+            </div>
+            <a href="mood.php" class="btn btn-outline btn-block">Log Mood</a>
         </div>
 
     </div>
@@ -141,64 +333,40 @@ document.addEventListener("DOMContentLoaded", function() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    const foodDatabase = {
-        'chicken': { cal: 165, protein: 31 },
-        'rice': { cal: 130, protein: 2.7 },
-        'egg': { cal: 143, protein: 12.6 },
-        'apple': { cal: 52, protein: 0.3 },
-        'banana': { cal: 89, protein: 1.1 },
-        'beef': { cal: 250, protein: 26 },
-        'salmon': { cal: 208, protein: 20 },
-        'oats': { cal: 389, protein: 16.9 },
-        'broccoli': { cal: 34, protein: 2.8 },
-        'potato': { cal: 86, protein: 1.7 }
-    };
-
-    function getBotResponse(input) {
-        const lowerInput = input.toLowerCase();
-        
-        // Check for food and grams (e.g. "150g chicken" or "chicken 150 grams")
-        const gramMatch = lowerInput.match(/(\d+)\s*(g|grams)/);
-        if (gramMatch) {
-            const grams = parseInt(gramMatch[1]);
-            for (let food in foodDatabase) {
-                if (lowerInput.includes(food)) {
-                    const nutrition = foodDatabase[food];
-                    const cals = Math.round((nutrition.cal / 100) * grams);
-                    const protein = ((nutrition.protein / 100) * grams).toFixed(1);
-                    return `For ${grams}g of ${food}, you're looking at about ${cals} kcal and ${protein}g of protein!`;
-                }
-            }
-            return `I see you're asking about ${grams}g of food, but I don't have that specific item in my database yet! Try common foods like chicken, rice, beef, oats, or salmon.`;
-        }
-
-        if (lowerInput.includes('water')) {
-            return "Aim for at least 2000ml to 3000ml of water daily based on activity level. Dehydration masks itself as hunger sometimes! Check the Water section to log today's intake.";
-        } else if (lowerInput.includes('calorie') || lowerInput.includes('food')) {
-            return "To lose weight, you need a calorie deficit. To gain muscle, a calorie surplus. Check out the new 'Food Guide' in the menu for low-calorie filling foods!";
-        } else if (lowerInput.includes('weight')) {
-            return "Weight isn't everything! Track your average weekly weight instead of day-to-day to see the real trend.";
-        } else if (lowerInput.includes('exercise') || lowerInput.includes('workout')) {
-            return "Get at least 150 minutes of moderate aerobic activity or 75 minutes of vigorous activity a week, plus strength training twice a week!";
-        } else if (lowerInput.includes('hello') || lowerInput.includes('hi')) {
-            return "Hi there! Feel free to ask me anything about your tracking metrics, or ask me about the calories in a specific food (e.g., '150g chicken').";
-        } else {
-            return "I'm a simple assistant. Try asking me about 'water', 'calories', 'weight', or 'exercise'! You can also ask me things like 'how much protein in 200g chicken'.";
-        }
-    }
-
-    function handleSend() {
+    async function handleSend() {
         const text = inputField.value.trim();
-        if (text === '') return;
-        
+        if (!text) return;
         appendMessage(text, true);
         inputField.value = '';
+        inputField.disabled = true;
+        sendBtn.disabled = true;
 
-        // Simulate typing delay
-        setTimeout(() => {
-            const response = getBotResponse(text);
-            appendMessage(response, false);
-        }, 500);
+        // Show typing indicator
+        const typingId = 'typing-' + Date.now();
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'msg-bubble msg-bot typing-indicator';
+        typingDiv.id = typingId;
+        typingDiv.innerHTML = '<span></span><span></span><span></span>';
+        messagesContainer.appendChild(typingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        try {
+            const res = await fetch('chatbot.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            });
+            const data = await res.json();
+            document.getElementById(typingId)?.remove();
+            appendMessage(data.reply, false);
+        } catch {
+            document.getElementById(typingId)?.remove();
+            appendMessage('I am offline right now, try again shortly!', false);
+        } finally {
+            inputField.disabled = false;
+            sendBtn.disabled = false;
+            inputField.focus();
+        }
     }
 
     sendBtn.addEventListener('click', handleSend);

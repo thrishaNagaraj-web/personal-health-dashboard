@@ -8,6 +8,12 @@
     --text-muted: #64748b;
     --border: #e2e8f0;
     --error: #ef4444;
+    --color-weight: #8b5cf6;
+    --color-water: #3498db;
+    --color-calories: #e67e22;
+    --color-exercise: #2ecc71;
+    --color-success: #22c55e;
+    --color-danger: #ef4444;
 }
 
 [data-theme="dark"] {
@@ -36,6 +42,12 @@ h2,
 h3 {
     margin-top: 0;
     color: var(--text-main);
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+h3 {
+    font-size: clamp(1.1rem, 2vw, 1.5rem);
+    /* Override for h3 */
 }
 
 a {
@@ -139,9 +151,119 @@ a:hover {
 .card {
     background: var(--surface);
     border-radius: 16px;
-    padding: 2rem;
+    padding: clamp(1.5rem, 3vw, 2rem);
+    /* Use clamp for padding */
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     border: 1px solid var(--border);
+    display: flex;
+    /* Add flexbox */
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: center;
+}
+
+/* Card Specific Classes */
+.card-kpi {
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 700;
+    margin: clamp(0.5rem, 2vw, 1rem) 0 0.25rem 0;
+}
+
+.card-unit {
+    font-size: clamp(0.875rem, 2vw, 1rem);
+    color: var(--text-muted);
+    margin-bottom: clamp(1rem, 3vw, 1.5rem);
+}
+
+.card-weight .card-kpi,
+.card-weight h3 {
+    color: var(--color-weight);
+}
+
+.card-water .card-kpi,
+.card-water h3 {
+    color: var(--color-water);
+}
+
+.card-calories .card-kpi,
+.card-calories h3 {
+    color: var(--color-calories);
+}
+
+.card-exercise .card-kpi,
+.card-exercise h3 {
+    color: var(--color-exercise);
+}
+
+.card-weight .progress-fill {
+    background-color: var(--color-weight);
+}
+
+.card-water .progress-fill {
+    background-color: var(--color-water);
+}
+
+.card-calories .progress-fill {
+    background-color: var(--color-calories);
+}
+
+.card-exercise .progress-fill {
+    background-color: var(--color-exercise);
+}
+
+.card-weight .btn-outline {
+    border-color: var(--color-weight);
+    color: var(--color-weight) !important;
+}
+
+.card-weight .btn-outline:hover {
+    background: var(--color-weight);
+    color: white !important;
+}
+
+.card-water .btn-outline {
+    border-color: var(--color-water);
+    color: var(--color-water) !important;
+}
+
+.card-water .btn-outline:hover {
+    background: var(--color-water);
+    color: white !important;
+}
+
+.card-calories .btn-outline {
+    border-color: var(--color-calories);
+    color: var(--color-calories) !important;
+}
+
+.card-calories .btn-outline:hover {
+    background: var(--color-calories);
+    color: white !important;
+}
+
+.card-exercise .btn-outline {
+    border-color: var(--color-exercise);
+    color: var(--color-exercise) !important;
+}
+
+.card-exercise .btn-outline:hover {
+    background: var(--color-exercise);
+    color: white !important;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 8px;
+    background-color: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.3s ease;
 }
 
 .form-group {
@@ -175,9 +297,95 @@ a:hover {
 /* Dashboard Grid */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: clamp(1rem, 3vw, 2rem);
+    /* Use clamp for GAP */
     margin-bottom: 2rem;
+}
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.badge-up {
+    background: #ecfdf5;
+    color: var(--color-success);
+}
+
+.badge-down {
+    background: #fef2f2;
+    color: var(--color-danger);
+}
+
+.badge-muted {
+    background: #f1f5f9;
+    color: var(--text-muted);
+}
+
+/* Health Score */
+@property --score {
+    syntax: "<number>";
+    inherits: false;
+    initial-value: 0;
+}
+
+.health-score-wrapper {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.health-score-ring {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: conic-gradient(#8b5cf6 calc(var(--score) * 1%),
+            #e2e8f0 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin: 0 auto;
+    animation: scoreReveal 1.5s ease-out forwards;
+}
+
+.score-inner {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: var(--surface, var(--card-bg, #ffffff));
+    /* fallback */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+    /* extra depth */
+}
+
+.score-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #8b5cf6;
+    line-height: 1;
+}
+
+.score-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.score-message {
+    margin-top: 1rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 1.1rem;
 }
 
 .widget {
@@ -475,5 +683,44 @@ footer {
         height: 100%;
         border-radius: 0;
         z-index: 1001;
+    }
+}
+
+/* Typing Indicator */
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 12px 16px;
+}
+
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    animation: typingBounce 1.2s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+
+    0%,
+    60%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+
+    30% {
+        transform: translateY(-6px);
+        opacity: 1;
     }
 }

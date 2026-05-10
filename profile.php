@@ -1,12 +1,16 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
+require_once 'includes/csrf.php';
 requireLogin();
 
 $user_id = $_SESSION['user_id'];
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        die('Invalid request. Please go back and try again.');
+    }
     $birthdate = $_POST['birthdate'] ?: null;
     $height = $_POST['height'] ?: null;
     $gender = $_POST['gender'] ?: null;
@@ -43,6 +47,7 @@ require_once 'includes/header.php';
         <p><strong>Age:</strong> <?= calculateAge($user['birthdate']) ?> years</p>
         
         <form method="POST" action="profile.php" style="margin-top: 1.5rem;">
+            <?= csrfField() ?>
             <div class="form-group">
                 <label for="birthdate">Birthdate</label>
                 <input type="date" id="birthdate" name="birthdate" class="form-control" value="<?= htmlspecialchars($user['birthdate'] ?? '') ?>">

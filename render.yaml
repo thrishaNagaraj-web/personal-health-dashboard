@@ -11,3 +11,5 @@ services:
     envVars:
       - key: RENDER_DISK_PATH
         value: /data
+      - key: GROQ_API_KEY
+        sync: false

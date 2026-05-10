@@ -1,17 +1,22 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
+require_once 'includes/csrf.php';
 redirectIfLoggedIn();
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        die('Invalid request. Please go back and try again.');
+    }
+
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     
     if (empty($username) || empty($password)) {
         $error = "Please fill in all fields.";
     } else {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $hash = password_hash($password, PASSWORD_BCRYPT);
         
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = ?");
         $stmt->execute([$username]);
@@ -38,6 +43,7 @@ require_once 'includes/header.php';
             <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
         <form method="POST" action="registration.php">
+            <?= csrfField() ?>
             <div class="form-group">
                 <label for="username">Username</label>
                 <input type="text" id="username" name="username" class="form-control" required>

@@ -50,6 +50,45 @@ try {
             log_date DATE NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
+        CREATE TABLE IF NOT EXISTS sleep_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            hours REAL NOT NULL,
+            quality INTEGER CHECK(quality BETWEEN 1 AND 5),
+            log_date DATE NOT NULL,
+            note TEXT,
+            UNIQUE(user_id, log_date)
+        );
+        CREATE TABLE IF NOT EXISTS mood_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            mood INTEGER CHECK(mood BETWEEN 1 AND 5),
+            log_date DATE NOT NULL,
+            note TEXT,
+            UNIQUE(user_id, log_date)
+        );
+        CREATE TABLE IF NOT EXISTS weekly_insights (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            week_start DATE NOT NULL,
+            summary TEXT NOT NULL,
+            generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, week_start)
+        );
+        CREATE TABLE IF NOT EXISTS goals (
+            user_id INTEGER PRIMARY KEY,
+            water_goal INTEGER DEFAULT 2000,
+            calorie_goal INTEGER DEFAULT 2000,
+            exercise_goal INTEGER DEFAULT 30,
+            sleep_goal REAL DEFAULT 8,
+            weight_goal REAL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS login_attempts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ip_address TEXT NOT NULL,
+          attempted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
     ");
 
 } catch(PDOException $e) {

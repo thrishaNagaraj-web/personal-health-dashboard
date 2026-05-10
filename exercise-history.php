@@ -1,12 +1,16 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
+require_once 'includes/csrf.php';
 requireLogin();
 
 $user_id = $_SESSION['user_id'];
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add') {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        die('Invalid request. Please go back and try again.');
+    }
     $activity = trim($_POST['activity'] ?? '');
     $duration_mins = (int)$_POST['duration_mins'];
     $calories_burned = (int)($_POST['calories_burned'] ?? 0);
@@ -37,6 +41,7 @@ require_once 'includes/header.php';
             <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
         <?php endif; ?>
         <form method="POST" action="exercise-history.php" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+            <?= csrfField() ?>
             <input type="hidden" name="action" value="add">
             <div class="form-group" style="margin-bottom: 0;">
                 <label for="activity">Activity</label>

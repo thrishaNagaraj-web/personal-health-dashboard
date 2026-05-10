@@ -26,6 +26,11 @@
             <li><a href="water-history.php">Water</a></li>
             <li><a href="calories-history.php">Calories</a></li>
             <li><a href="exercise-history.php">Exercise</a></li>
+            <li><a href="sleep.php">Sleep</a></li>
+            <li><a href="mood.php">Mood</a></li>
+            <li><a href="insights.php">Insights</a></li>
+            <li><a href="goals.php">Goals</a></li>
+            <li><a href="reports.php">Reports</a></li>
             <li><a href="deficit-foods.php">Food Guide</a></li>
             <li><a href="profile.php">Profile</a></li>
             <li><button id="themeToggle" style="background: transparent; border: none; cursor: pointer; font-size: 1.25rem;" aria-label="Toggle Dark Mode" title="Toggle Dark Mode">🌙</button></li>
