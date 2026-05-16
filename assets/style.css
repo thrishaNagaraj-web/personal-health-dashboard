@@ -841,3 +841,163 @@ footer {
         opacity: 1;
     }
 }
+
+/* Quick Log Modal */
+.ql-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 1rem;
+}
+
+.ql-modal.active {
+    display: flex;
+}
+
+.ql-content {
+    background: var(--surface);
+    width: 100%;
+    max-width: 500px;
+    border-radius: 24px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    position: relative;
+    animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalSlideUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.ql-header {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ql-header h3 {
+    margin: 0;
+    color: white;
+    font-size: 1.25rem;
+}
+
+.ql-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: 0.2s;
+}
+
+.ql-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.ql-body {
+    padding: 2rem;
+    min-height: 300px;
+}
+
+.ql-step {
+    display: none;
+}
+
+.ql-step.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.ql-step h4 {
+    margin-top: 0;
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.ql-progress {
+    height: 6px;
+    background: var(--border);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+}
+
+.ql-progress-fill {
+    height: 100%;
+    background: var(--secondary);
+    width: 25%;
+    transition: width 0.3s ease;
+}
+
+.ql-footer {
+    padding: 1.5rem 2rem;
+    display: flex;
+    gap: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.ql-footer button {
+    flex: 1;
+}
+
+/* Specific Step Styling */
+.mood-selector {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 1.5rem;
+}
+
+.mood-option {
+    flex: 1;
+    aspect-ratio: 1;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mood-option.selected {
+    border-color: var(--primary);
+    background: rgba(79, 70, 229, 0.1);
+    transform: translateY(-2px);
+}
+
+.ql-input-group {
+    margin-bottom: 1.5rem;
+}
+
+.ql-input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}

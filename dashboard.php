@@ -199,13 +199,18 @@ require_once 'includes/header.php';
 ?>
 
 <div style="max-width: 1000px; margin: 0 auto; padding: clamp(1rem, 3vw, 2rem) 0;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: clamp(1rem, 3vw, 2rem);">
-        <h2 style="margin: 0;">Welcome, <?= htmlspecialchars($_SESSION['username']) ?>!</h2>
-        <?php if ($streak > 0): ?>
-            <div style="font-size: 1.25rem; font-weight: 700; background: var(--surface); padding: 0.5rem 1rem; border-radius: 999px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); color: #f97316;">
-                🔥 <?= $streak ?> Day Streak
-            </div>
-        <?php endif; ?>
+    <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: clamp(1.5rem, 4vw, 2.5rem);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0;">Welcome, <?= htmlspecialchars($_SESSION['username']) ?>!</h2>
+            <?php if ($streak > 0): ?>
+                <div style="font-size: 1.1rem; font-weight: 700; background: var(--surface); padding: 0.5rem 1rem; border-radius: 999px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); color: #f97316;">
+                    🔥 <?= $streak ?> Day Streak
+                </div>
+            <?php endif; ?>
+        </div>
+        <button id="startQuickLog" class="btn btn-primary" style="align-self: flex-start; padding: 0.75rem 1.5rem; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+            ✨ Save Daily Updates
+        </button>
     </div>
     
     <style>
@@ -420,6 +425,200 @@ document.addEventListener("DOMContentLoaded", function() {
     sendBtn.addEventListener('click', handleSend);
     inputField.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') handleSend();
+    });
+});
+</script>
+
+<!-- Quick Log Modal -->
+<div class="ql-modal" id="quickLogModal">
+    <div class="ql-content">
+        <div class="ql-progress"><div class="ql-progress-fill" id="qlProgress"></div></div>
+        <div class="ql-header">
+            <h3 id="qlTitle">Quick Log</h3>
+            <button class="ql-close" id="qlClose">&times;</button>
+        </div>
+        <div class="ql-body">
+            <!-- Step 1: Water -->
+            <div class="ql-step active" data-step="1" data-title="💧 Water Intake" data-action="log_water">
+                <h4>How much water did you drink today?</h4>
+                <div class="ql-input-group">
+                    <input type="number" id="qlWater" class="form-control" placeholder="Amount in ml (e.g. 500)" autofocus>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Standard glass is ~250ml</p>
+            </div>
+
+            <!-- Step 2: Calories -->
+            <div class="ql-step" data-step="2" data-title="🔥 Calorie Intake" data-action="log_calories">
+                <h4>Log your calories</h4>
+                <div class="ql-input-group">
+                    <input type="number" id="qlCalories" class="form-control" placeholder="Calories in kcal (e.g. 600)">
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Estimated for your last meal</p>
+            </div>
+
+            <!-- Step 3: Exercise -->
+            <div class="ql-step" data-step="3" data-title="🏃 Exercise" data-action="log_exercise">
+                <h4>Did you exercise?</h4>
+                <div class="ql-input-group">
+                    <label>Activity</label>
+                    <input type="text" id="qlExerciseActivity" class="form-control" placeholder="e.g. Walking, Gym">
+                </div>
+                <div class="ql-input-group">
+                    <label>Duration (mins)</label>
+                    <input type="number" id="qlExerciseDuration" class="form-control" placeholder="Minutes">
+                </div>
+            </div>
+
+            <!-- Step 4: Sleep & Mood -->
+            <div class="ql-step" data-step="4" data-title="😴 Sleep & Mood" data-action="log_sleep_mood">
+                <h4>How was your rest & mood?</h4>
+                <div class="ql-input-group">
+                    <label>Sleep Hours</label>
+                    <input type="number" id="qlSleepHours" step="0.5" class="form-control" placeholder="Hours">
+                </div>
+                <label>Current Mood</label>
+                <div class="mood-selector" id="qlMoodSelector">
+                    <div class="mood-option" data-value="1">😢</div>
+                    <div class="mood-option" data-value="2">😕</div>
+                    <div class="mood-option" data-value="3">😐</div>
+                    <div class="mood-option" data-value="4">🙂</div>
+                    <div class="mood-option" data-value="5">😄</div>
+                </div>
+            </div>
+
+            <!-- Step 5: Weight -->
+            <div class="ql-step" data-step="5" data-title="⚖️ Weight" data-action="log_weight">
+                <h4>Update your weight?</h4>
+                <div class="ql-input-group">
+                    <input type="number" id="qlWeight" step="0.1" class="form-control" placeholder="Weight in kg">
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Leave blank to skip</p>
+            </div>
+        </div>
+        <div class="ql-footer">
+            <button class="btn btn-outline" id="qlPrev" style="display: none;">Back</button>
+            <button class="btn btn-primary" id="qlNext">Next Step</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('quickLogModal');
+    const startBtn = document.getElementById('startQuickLog');
+    const closeBtn = document.getElementById('qlClose');
+    const nextBtn = document.getElementById('qlNext');
+    const prevBtn = document.getElementById('qlPrev');
+    const steps = document.querySelectorAll('.ql-step');
+    const progress = document.getElementById('qlProgress');
+    const title = document.getElementById('qlTitle');
+    
+    let currentStep = 1;
+    let selectedMood = 3;
+
+    // Mood Selection
+    document.querySelectorAll('.mood-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            document.querySelectorAll('.mood-option').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+            selectedMood = opt.dataset.value;
+        });
+    });
+
+    const showStep = (n) => {
+        steps.forEach(s => s.classList.remove('active'));
+        const activeStep = document.querySelector(`.ql-step[data-step="${n}"]`);
+        activeStep.classList.add('active');
+        
+        // Update Title & Progress
+        title.textContent = activeStep.dataset.title;
+        progress.style.width = `${(n / steps.length) * 100}%`;
+        
+        // Buttons
+        prevBtn.style.display = n === 1 ? 'none' : 'block';
+        nextBtn.textContent = n === steps.length ? 'Finish & Save' : 'Next Step';
+
+        // Focus first input
+        const input = activeStep.querySelector('input');
+        if (input) input.focus();
+    };
+
+    startBtn.addEventListener('click', () => {
+        modal.classList.add('active');
+        currentStep = 1;
+        showStep(1);
+    });
+
+    closeBtn.addEventListener('click', () => modal.classList.remove('active'));
+
+    const saveStepData = async (stepNum) => {
+        const stepEl = document.querySelector(`.ql-step[data-step="${stepNum}"]`);
+        const action = stepEl.dataset.action;
+        const formData = new FormData();
+        formData.append('action', action);
+        formData.append('csrf_token', '<?= $_SESSION['csrf_token'] ?>');
+
+        let hasData = false;
+        if (action === 'log_water') {
+            const val = document.getElementById('qlWater').value;
+            if (val) { formData.append('amount', val); hasData = true; }
+        } else if (action === 'log_calories') {
+            const val = document.getElementById('qlCalories').value;
+            if (val) { formData.append('calories', val); hasData = true; }
+        } else if (action === 'log_exercise') {
+            const act = document.getElementById('qlExerciseActivity').value;
+            const dur = document.getElementById('qlExerciseDuration').value;
+            if (act && dur) { 
+                formData.append('activity', act); 
+                formData.append('duration', dur); 
+                hasData = true; 
+            }
+        } else if (action === 'log_sleep_mood') {
+            const sleep = document.getElementById('qlSleepHours').value;
+            if (sleep) formData.append('sleep_hours', sleep);
+            formData.append('sleep_quality', 3); // Default
+            formData.append('mood', selectedMood);
+            hasData = true;
+        } else if (action === 'log_weight') {
+            const val = document.getElementById('qlWeight').value;
+            if (val) { formData.append('weight', val); hasData = true; }
+        }
+
+        if (hasData) {
+            try {
+                const response = await fetch('includes/quick_log_handler.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                return result.success;
+            } catch (e) { return false; }
+        }
+        return true; // Skip if no data
+    };
+
+    nextBtn.addEventListener('click', async () => {
+        nextBtn.disabled = true;
+        nextBtn.textContent = 'Saving...';
+        
+        const success = await saveStepData(currentStep);
+        
+        if (currentStep < steps.length) {
+            currentStep++;
+            showStep(currentStep);
+            nextBtn.disabled = false;
+        } else {
+            // Finished
+            modal.classList.remove('active');
+            location.reload(); // Refresh to show new scores/progress
+        }
+    });
+
+    prevBtn.addEventListener('click', () => {
+        if (currentStep > 1) {
+            currentStep--;
+            showStep(currentStep);
+        }
     });
 });
 </script>
