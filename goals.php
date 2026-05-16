@@ -277,7 +277,7 @@ require_once 'includes/header.php';
                 </div>
             </div>
             
-            <button type="submit" name="save_goals" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.1rem; margin-top: 1rem;">Save Goals</button>
+            <button type="submit" name="save_goals" class="btn btn-primary btn-block" style="margin-top: 1rem;">Save Goals</button>
             <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 1rem;">Goals are used to calculate your Health Score and daily progress bars</p>
         </form>
     </div>

@@ -620,15 +620,17 @@ footer {
 
     .card {
         padding: 1.25rem;
+        align-items: center; /* Prevent buttons from stretching full-width */
     }
 
     .card .btn,
     .card .btn-outline,
     .card .btn-primary {
-        width: auto;
+        width: auto !important;
+        min-width: 140px;
         display: inline-block;
-        padding: 0.4rem 1.25rem;
-        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
     }
 
     .card-kpi {
