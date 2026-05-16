@@ -10,86 +10,114 @@ $seven_days_ago = date('Y-m-d', strtotime('-7 days'));
 
 // Regenerate Cache Logic
 if (isset($_GET['regenerate']) && $_GET['regenerate'] == 1) {
-    $stmt = $pdo->prepare("DELETE FROM weekly_insights WHERE user_id = ? AND week_start = ?");
-    $stmt->execute([$user_id, $week_start]);
+    try {
+        $stmt = $pdo->prepare("DELETE FROM weekly_insights WHERE user_id = ? AND week_start = ?");
+        $stmt->execute([$user_id, $week_start]);
+    } catch (PDOException $e) {}
     header("Location: insights.php");
     exit;
 }
 
 // 1. Fetch Metrics for the last 7 days
 // Water
-$stmt = $pdo->prepare("SELECT AVG(amount_ml) FROM water_logs WHERE user_id = ? AND log_date >= ?");
-$stmt->execute([$user_id, $seven_days_ago]);
-$avg_water = round((float)$stmt->fetchColumn());
+try {
+    $stmt = $pdo->prepare("SELECT AVG(amount_ml) FROM water_logs WHERE user_id = ? AND log_date >= ?");
+    $stmt->execute([$user_id, $seven_days_ago]);
+    $avg_water = round((float)$stmt->fetchColumn());
+} catch (PDOException $e) {
+    $avg_water = 0;
+}
 
 // Calories
-$stmt = $pdo->prepare("SELECT SUM(calories) as total, AVG(calories) as avg FROM calories_logs WHERE user_id = ? AND log_date >= ?");
-$stmt->execute([$user_id, $seven_days_ago]);
-$cal_row = $stmt->fetch();
-$total_calories = (int)$cal_row['total'];
-$avg_calories = round((float)$cal_row['avg']);
+try {
+    $stmt = $pdo->prepare("SELECT SUM(calories) as total, AVG(calories) as avg FROM calories_logs WHERE user_id = ? AND log_date >= ?");
+    $stmt->execute([$user_id, $seven_days_ago]);
+    $cal_row = $stmt->fetch();
+    $total_calories = (int)($cal_row['total'] ?? 0);
+    $avg_calories = round((float)($cal_row['avg'] ?? 0));
+} catch (PDOException $e) {
+    $total_calories = 0;
+    $avg_calories = 0;
+}
 
 // Exercise
-$stmt = $pdo->prepare("SELECT SUM(duration_mins) FROM exercise_logs WHERE user_id = ? AND log_date >= ?");
-$stmt->execute([$user_id, $seven_days_ago]);
-$total_exercise_mins = (int)$stmt->fetchColumn();
+try {
+    $stmt = $pdo->prepare("SELECT SUM(duration_mins) FROM exercise_logs WHERE user_id = ? AND log_date >= ?");
+    $stmt->execute([$user_id, $seven_days_ago]);
+    $total_exercise_mins = (int)$stmt->fetchColumn();
+} catch (PDOException $e) {
+    $total_exercise_mins = 0;
+}
 
 // Weight Change
-$stmt = $pdo->prepare("SELECT weight FROM weight_logs WHERE user_id = ? AND log_date >= ? ORDER BY log_date ASC, id ASC");
-$stmt->execute([$user_id, $seven_days_ago]);
-$weights_this_week = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-$weight_start = count($weights_this_week) > 0 ? (float)$weights_this_week[0] : 0;
-$weight_end = count($weights_this_week) > 0 ? (float)end($weights_this_week) : 0;
-$weight_change = count($weights_this_week) > 1 ? round($weight_end - $weight_start, 1) : 0;
+try {
+    $stmt = $pdo->prepare("SELECT weight FROM weight_logs WHERE user_id = ? AND log_date >= ? ORDER BY log_date ASC, id ASC");
+    $stmt->execute([$user_id, $seven_days_ago]);
+    $weights_this_week = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $weight_start = count($weights_this_week) > 0 ? (float)$weights_this_week[0] : 0;
+    $weight_end = count($weights_this_week) > 0 ? (float)end($weights_this_week) : 0;
+    $weight_change = count($weights_this_week) > 1 ? round($weight_end - $weight_start, 1) : 0;
+} catch (PDOException $e) {
+    $weights_this_week = [];
+    $weight_change = 0;
+}
 $weight_display = count($weights_this_week) > 1 ? (($weight_change > 0 ? '+' : '') . $weight_change . 'kg') : 'N/A';
 
 // Sleep & Mood
-$avg_sleep = null;
-$avg_mood = null;
-
 try {
     $stmt = $pdo->prepare("SELECT AVG(hours) FROM sleep_logs WHERE user_id = ? AND log_date >= ?");
     $stmt->execute([$user_id, $seven_days_ago]);
-    $avg_sleep = $stmt->fetchColumn() ? round((float)$stmt->fetchColumn(), 1) : null;
-} catch (Exception $e) {}
+    $avg_sleep = $stmt->fetchColumn() ? round((float)$stmt->fetchColumn(), 1) : 0;
+} catch (Exception $e) {
+    $avg_sleep = 0;
+}
 
 try {
     $stmt = $pdo->prepare("SELECT AVG(mood) FROM mood_logs WHERE user_id = ? AND log_date >= ?");
     $stmt->execute([$user_id, $seven_days_ago]);
-    $avg_mood = $stmt->fetchColumn() ? round((float)$stmt->fetchColumn(), 1) : null;
-} catch (Exception $e) {}
+    $avg_mood = $stmt->fetchColumn() ? round((float)$stmt->fetchColumn(), 1) : 0;
+} catch (Exception $e) {
+    $avg_mood = 0;
+}
 
 // Days Logged (Any activity)
-$stmt = $pdo->prepare("
-    SELECT COUNT(DISTINCT log_date) FROM (
-        SELECT log_date FROM water_logs WHERE user_id = :uid AND log_date >= :ws
-        UNION
-        SELECT log_date FROM calories_logs WHERE user_id = :uid AND log_date >= :ws
-        UNION
-        SELECT log_date FROM exercise_logs WHERE user_id = :uid AND log_date >= :ws
-        UNION
-        SELECT log_date FROM weight_logs WHERE user_id = :uid AND log_date >= :ws
-    )
-");
-$stmt->execute(['uid' => $user_id, 'ws' => $seven_days_ago]);
-$days_logged = (int)$stmt->fetchColumn();
+try {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(DISTINCT log_date) FROM (
+            SELECT log_date FROM water_logs WHERE user_id = :uid AND log_date >= :ws
+            UNION
+            SELECT log_date FROM calories_logs WHERE user_id = :uid AND log_date >= :ws
+            UNION
+            SELECT log_date FROM exercise_logs WHERE user_id = :uid AND log_date >= :ws
+            UNION
+            SELECT log_date FROM weight_logs WHERE user_id = :uid AND log_date >= :ws
+        )
+    ");
+    $stmt->execute(['uid' => $user_id, 'ws' => $seven_days_ago]);
+    $days_logged = (int)$stmt->fetchColumn();
+} catch (PDOException $e) {
+    $days_logged = 0;
+}
 
 // 2. Check Cache
-$stmt = $pdo->prepare("SELECT summary, generated_at FROM weekly_insights WHERE user_id = ? AND week_start = ?");
-$stmt->execute([$user_id, $week_start]);
-$cache = $stmt->fetch();
+try {
+    $stmt = $pdo->prepare("SELECT summary, generated_at FROM weekly_insights WHERE user_id = ? AND week_start = ?");
+    $stmt->execute([$user_id, $week_start]);
+    $cache = $stmt->fetch();
+} catch (PDOException $e) {
+    $cache = false;
+}
 
 $summary = "";
 $generated_at = "";
 
-if ($cache && strtotime($cache['generated_at']) > strtotime('-6 hours')) {
+if ($cache && !empty($cache['summary'])) {
     $summary = $cache['summary'];
     $generated_at = date('M d, g:i A', strtotime($cache['generated_at']));
 } else {
     // Generate new using Groq API
-    $sleep_str = $avg_sleep !== null ? "{$avg_sleep} hours/night" : "Not tracked yet";
-    $mood_str = $avg_mood !== null ? "{$avg_mood}/5" : "Not tracked yet";
+    $sleep_str = $avg_sleep ? "{$avg_sleep} hours/night" : "Not tracked yet";
+    $mood_str = $avg_mood ? "{$avg_mood}/5" : "Not tracked yet";
 
     $system_prompt = "You are an encouraging health coach writing a weekly review. Be specific, warm, and actionable. Use simple language.";
     $user_message = "My health stats this week:
@@ -111,7 +139,7 @@ Write exactly 3 short paragraphs:
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
             "model" => "llama-3.1-8b-instant",
             "messages" => [
@@ -128,7 +156,6 @@ Write exactly 3 short paragraphs:
         
         $response = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_err = curl_error($ch);
         curl_close($ch);
         
         if ($http_code === 200 && $response) {
@@ -137,21 +164,19 @@ Write exactly 3 short paragraphs:
             
             if ($summary) {
                 // Save to cache
-                $stmt = $pdo->prepare("INSERT INTO weekly_insights (user_id, week_start, summary) VALUES (?, ?, ?) 
-                                       ON CONFLICT(user_id, week_start) DO UPDATE SET summary = excluded.summary, generated_at = CURRENT_TIMESTAMP");
-                $stmt->execute([$user_id, $week_start, $summary]);
-                $generated_at = date('M d, g:i A');
+                try {
+                    $stmt = $pdo->prepare("INSERT INTO weekly_insights (user_id, week_start, summary) VALUES (?, ?, ?) 
+                                           ON CONFLICT(user_id, week_start) DO UPDATE SET summary = excluded.summary, generated_at = CURRENT_TIMESTAMP");
+                    $stmt->execute([$user_id, $week_start, $summary]);
+                    $generated_at = date('M d, g:i A');
+                } catch (PDOException $e) {}
             }
-        } else {
-            error_log("Groq API Error: HTTP $http_code. cURL Error: $curl_err. Response: $response");
         }
-    } else {
-        error_log("GROQ_API_KEY is not set in the environment.");
     }
 
     if (!$summary) {
         // Fallback static prompt
-        $summary = "We couldn't reach the AI coach right now, but here is your static summary!\n\nYour average calories were {$avg_calories}kcal, and you drank an average of {$avg_water}ml of water daily. You achieved {$total_exercise_mins} minutes of exercise.\n\nKeep logging daily to build a complete picture of your health journey!";
+        $summary = "AI summary unavailable this week.";
         $generated_at = "Fallback (Not saved)";
     }
 }
@@ -162,6 +187,15 @@ $score_nutrition = max(0, 100 - abs($avg_calories - 2000) / 20);
 $score_exercise = min(($total_exercise_mins / 150) * 100, 100);
 $score_sleep = $avg_sleep ? min(($avg_sleep / 8) * 100, 100) : 0;
 $score_mood = $avg_mood ? ($avg_mood / 5) * 100 : 0;
+
+$scores = [
+    $score_hydration,
+    $score_nutrition,
+    $score_exercise,
+    $score_sleep,
+    $score_mood
+];
+$scores = array_map(fn($v) => intval($v ?? 0), $scores);
 
 require_once 'includes/header.php';
 ?>
@@ -199,12 +233,12 @@ require_once 'includes/header.php';
         </div>
         <div class="card" style="min-width: 150px; text-align: center; padding: 1.5rem 1rem;">
             <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">😴</div>
-            <div style="font-size: 1.5rem; font-weight: bold; color: #3b82f6;"><?= $avg_sleep !== null ? $avg_sleep.'h' : 'N/A' ?></div>
+            <div style="font-size: 1.5rem; font-weight: bold; color: #3b82f6;"><?= $avg_sleep ? $avg_sleep.'h' : 'N/A' ?></div>
             <div style="font-size: 0.85rem; color: var(--text-muted);">Avg Sleep</div>
         </div>
         <div class="card" style="min-width: 150px; text-align: center; padding: 1.5rem 1rem;">
             <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">😊</div>
-            <div style="font-size: 1.5rem; font-weight: bold; color: #eab308;"><?= $avg_mood !== null ? $avg_mood.'/5' : 'N/A' ?></div>
+            <div style="font-size: 1.5rem; font-weight: bold; color: #eab308;"><?= $avg_mood ? $avg_mood.'/5' : 'N/A' ?></div>
             <div style="font-size: 0.85rem; color: var(--text-muted);">Avg Mood</div>
         </div>
         <div class="card" style="min-width: 150px; text-align: center; padding: 1.5rem 1rem;">
@@ -240,6 +274,7 @@ require_once 'includes/header.php';
 
 <script>
 document.addEventListener("DOMContentLoaded", function() {
+   const chartData = <?= json_encode(array_values($scores)) ?>;
    const ctx = document.getElementById('radarChart').getContext('2d');
    new Chart(ctx, {
      type: 'radar',
@@ -247,7 +282,7 @@ document.addEventListener("DOMContentLoaded", function() {
        labels: ['Hydration','Nutrition','Exercise','Sleep','Mood'],
        datasets: [{
          label: 'This Week',
-         data: [<?= $score_hydration ?>, <?= $score_nutrition ?>, <?= $score_exercise ?>, <?= $score_sleep ?>, <?= $score_mood ?>],
+         data: chartData,
          backgroundColor: 'rgba(139, 92, 246, 0.15)',
          borderColor: '#8b5cf6',
          borderWidth: 2,
