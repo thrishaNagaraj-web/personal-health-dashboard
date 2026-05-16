@@ -622,6 +622,19 @@ footer {
         padding: 1.25rem;
     }
 
+    .card .btn,
+    .card .btn-outline,
+    .card .btn-primary {
+        width: auto;
+        display: inline-block;
+        padding: 0.4rem 1.25rem;
+        font-size: 0.9rem;
+    }
+
+    .card-kpi {
+        font-size: 2rem;
+    }
+
     .dashboard-grid {
         grid-template-columns: 1fr;
     }
