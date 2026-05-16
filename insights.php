@@ -110,6 +110,8 @@ Write exactly 3 short paragraphs:
         $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
             "model" => "llama-3.1-8b-instant",
             "messages" => [
@@ -126,6 +128,7 @@ Write exactly 3 short paragraphs:
         
         $response = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err = curl_error($ch);
         curl_close($ch);
         
         if ($http_code === 200 && $response) {
@@ -139,7 +142,11 @@ Write exactly 3 short paragraphs:
                 $stmt->execute([$user_id, $week_start, $summary]);
                 $generated_at = date('M d, g:i A');
             }
+        } else {
+            error_log("Groq API Error: HTTP $http_code. cURL Error: $curl_err. Response: $response");
         }
+    } else {
+        error_log("GROQ_API_KEY is not set in the environment.");
     }
 
     if (!$summary) {
