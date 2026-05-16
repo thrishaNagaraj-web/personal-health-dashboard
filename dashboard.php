@@ -23,120 +23,169 @@ function getBadgeHtml($today_val, $yesterday_val) {
 }
 
 // Yesterday Data
-$stmt = $pdo->prepare("SELECT weight FROM weight_logs WHERE user_id = ? AND log_date = ? ORDER BY id DESC LIMIT 1");
-$stmt->execute([$user_id, $yesterday]);
-$yesterday_weight = $stmt->fetchColumn();
+try {
+    $stmt = $pdo->prepare("SELECT weight FROM weight_logs WHERE user_id = ? AND log_date = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$user_id, $yesterday]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $yesterday_weight = $res['weight'] ?? 0;
+} catch (PDOException $e) { $yesterday_weight = 0; }
 
-$stmt = $pdo->prepare("SELECT SUM(amount_ml) FROM water_logs WHERE user_id = ? AND log_date = ?");
-$stmt->execute([$user_id, $yesterday]);
-$yesterday_water = $stmt->fetchColumn() ?: 0;
+try {
+    $stmt = $pdo->prepare("SELECT SUM(amount_ml) as total FROM water_logs WHERE user_id = ? AND log_date = ?");
+    $stmt->execute([$user_id, $yesterday]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $yesterday_water = $res['total'] ?? 0;
+} catch (PDOException $e) { $yesterday_water = 0; }
 
-$stmt = $pdo->prepare("SELECT SUM(calories) FROM calories_logs WHERE user_id = ? AND log_date = ?");
-$stmt->execute([$user_id, $yesterday]);
-$yesterday_calories = $stmt->fetchColumn() ?: 0;
+try {
+    $stmt = $pdo->prepare("SELECT SUM(calories) as total FROM calories_logs WHERE user_id = ? AND log_date = ?");
+    $stmt->execute([$user_id, $yesterday]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $yesterday_calories = $res['total'] ?? 0;
+} catch (PDOException $e) { $yesterday_calories = 0; }
 
-$stmt = $pdo->prepare("SELECT duration_mins FROM exercise_logs WHERE user_id = ? AND log_date = ? ORDER BY id DESC LIMIT 1");
-$stmt->execute([$user_id, $yesterday]);
-$yesterday_exercise = $stmt->fetchColumn() ?: 0;
+try {
+    $stmt = $pdo->prepare("SELECT duration_mins FROM exercise_logs WHERE user_id = ? AND log_date = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$user_id, $yesterday]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $yesterday_exercise = $res['duration_mins'] ?? 0;
+} catch (PDOException $e) { $yesterday_exercise = 0; }
 
 // Streak logic
-$stmt = $pdo->prepare("
-    SELECT DISTINCT log_date FROM (
-        SELECT log_date FROM water_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
-        UNION
-        SELECT log_date FROM calories_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
-        UNION
-        SELECT log_date FROM exercise_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
-        UNION
-        SELECT log_date FROM weight_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
-    )
-");
-$stmt->execute(['uid' => $user_id]);
-$active_dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
+try {
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT log_date FROM (
+            SELECT log_date FROM water_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
+            UNION
+            SELECT log_date FROM calories_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
+            UNION
+            SELECT log_date FROM exercise_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
+            UNION
+            SELECT log_date FROM weight_logs WHERE user_id = :uid AND log_date >= date('now', '-30 days') AND log_date <= date('now')
+        )
+    ");
+    $stmt->execute(['uid' => $user_id]);
+    $active_dates = $stmt->fetchAll(PDO::FETCH_COLUMN) ?? [];
+} catch (PDOException $e) { $active_dates = []; }
 
-$streak = 0;
+$streak_days = 0;
 for ($i = 0; $i < 30; $i++) {
     $d = date('Y-m-d', strtotime("-$i days"));
     if (in_array($d, $active_dates)) {
-        $streak++;
+        $streak_days++;
     } else if ($i === 0) {
         // Missing today doesn't break the streak
     } else {
         break;
     }
 }
+$streak_days = $streak_days ?? 0;
+$streak = $streak_days; // For HTML compatibility
 
 // User Details (Height for BMI)
-$stmt = $pdo->prepare("SELECT height FROM users WHERE id = ?");
-$stmt->execute([$user_id]);
-$height = $stmt->fetchColumn();
+try {
+    $stmt = $pdo->prepare("SELECT height FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $height = $res['height'] ?? 0;
+} catch (PDOException $e) { $height = 0; }
 
 // Latest Weight
-$stmt = $pdo->prepare("SELECT weight FROM weight_logs WHERE user_id = ? ORDER BY log_date DESC, id DESC LIMIT 1");
-$stmt->execute([$user_id]);
-$latest_weight = $stmt->fetchColumn() ?: '--';
+try {
+    $stmt = $pdo->prepare("SELECT weight FROM weight_logs WHERE user_id = ? ORDER BY log_date DESC, id DESC LIMIT 1");
+    $stmt->execute([$user_id]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $latest_weight = $res['weight'] ?? '--';
+} catch (PDOException $e) { $latest_weight = '--'; }
 
 $bmi = null;
-if ($height && $height > 0 && $latest_weight !== '--') {
+if ($height > 0 && $latest_weight !== '--') {
     $height_m = $height / 100;
     $bmi = round($latest_weight / ($height_m * $height_m), 1);
 }
+
 // Today's Water
-$stmt = $pdo->prepare("SELECT SUM(amount_ml) FROM water_logs WHERE user_id = ? AND log_date = ?");
-$stmt->execute([$user_id, $today]);
-$today_water = $stmt->fetchColumn() ?: 0;
+try {
+    $stmt = $pdo->prepare("SELECT SUM(amount_ml) as total FROM water_logs WHERE user_id = ? AND log_date = ?");
+    $stmt->execute([$user_id, $today]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $today_water = $res['total'] ?? 0;
+} catch (PDOException $e) { $today_water = 0; }
 
 // Today's Calories
-$stmt = $pdo->prepare("SELECT SUM(calories) FROM calories_logs WHERE user_id = ? AND log_date = ?");
-$stmt->execute([$user_id, $today]);
-$today_calories = $stmt->fetchColumn() ?: 0;
+try {
+    $stmt = $pdo->prepare("SELECT SUM(calories) as total FROM calories_logs WHERE user_id = ? AND log_date = ?");
+    $stmt->execute([$user_id, $today]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $today_calories = $res['total'] ?? 0;
+} catch (PDOException $e) { $today_calories = 0; }
 
 // Latest Exercise
-$stmt = $pdo->prepare("SELECT activity, duration_mins FROM exercise_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 1");
-$stmt->execute([$user_id]);
-$latest_exercise = $stmt->fetch();
+try {
+    $stmt = $pdo->prepare("SELECT activity, duration_mins FROM exercise_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 1");
+    $stmt->execute([$user_id]);
+    $latest_exercise = $stmt->fetch(PDO::FETCH_ASSOC) ?? [];
+} catch (PDOException $e) { $latest_exercise = []; }
 
-// Query last night's sleep in dashboard.php
-$stmt = $pdo->prepare("SELECT hours, quality FROM sleep_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 1");
-$stmt->execute([$user_id]);
-$last_sleep = $stmt->fetch();
+try {
+    $stmt = $pdo->prepare("SELECT SUM(duration_mins) as total FROM exercise_logs WHERE user_id = ? AND log_date = ?");
+    $stmt->execute([$user_id, $today]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $today_exercise_mins = $res['total'] ?? 0;
+} catch (PDOException $e) { $today_exercise_mins = 0; }
+
+// Query last night's sleep
+try {
+    $stmt = $pdo->prepare("SELECT hours, quality FROM sleep_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 1");
+    $stmt->execute([$user_id]);
+    $last_sleep = $stmt->fetch(PDO::FETCH_ASSOC) ?? [];
+} catch (PDOException $e) { $last_sleep = []; }
+$sleep_hours = $last_sleep['hours'] ?? 0;
 
 // Query today's mood
-$stmt = $pdo->prepare("SELECT mood FROM mood_logs WHERE user_id = ? AND log_date = ?");
-$stmt->execute([$user_id, $today]);
-$today_mood = $stmt->fetchColumn();
+try {
+    $stmt = $pdo->prepare("SELECT mood FROM mood_logs WHERE user_id = ? AND log_date = ?");
+    $stmt->execute([$user_id, $today]);
+    $res = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    $today_mood = $res['mood'] ?? 0;
+} catch (PDOException $e) { $today_mood = 0; }
 
 $quality_emojis_short = [1 => '😴', 2 => '😐', 3 => '🙂', 4 => '😊', 5 => '🤩'];
 $mood_emojis = [1 => '😢', 2 => '😕', 3 => '😐', 4 => '🙂', 5 => '😄'];
 
-// --- Health Score Calculation ---
-$water_goal = 2000;
-$calorie_goal = 2000;
-$exercise_goal = 30;
-
+// --- User Goals ---
 try {
-    $stmt = $pdo->prepare("SELECT water_goal, calorie_goal, exercise_goal FROM goals WHERE user_id = ?");
+    $stmt = $pdo->prepare("SELECT water_goal, calorie_goal, exercise_goal, sleep_goal FROM goals WHERE user_id = ?");
     $stmt->execute([$user_id]);
-    $goals_row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($goals_row) {
-        $water_goal = $goals_row['water_goal'] ?: 2000;
-        $calorie_goal = $goals_row['calorie_goal'] ?: 2000;
-        $exercise_goal = $goals_row['exercise_goal'] ?: 30;
-    }
-} catch (Exception $e) { }
+    $db_goals = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (PDOException $e) { $db_goals = false; }
 
-$stmt = $pdo->prepare("SELECT SUM(duration_mins) FROM exercise_logs WHERE user_id = ? AND log_date = ?");
-$stmt->execute([$user_id, $today]);
-$today_exercise_mins = $stmt->fetchColumn() ?: 0;
+$user_goals = $db_goals ?: null;
+$user_goals = $user_goals ?? [
+    'water_goal' => 2000, 
+    'calorie_goal' => 2000,
+    'exercise_goal' => 30, 
+    'sleep_goal' => 8
+];
 
-$water_score = min(($today_water / $water_goal) * 25, 25);
-$cal_diff = abs($today_calories - $calorie_goal);
-$cal_score = $cal_diff <= 200 ? 25 : max(0, 25 - ($cal_diff / 200) * 5);
-$exercise_score = min(($today_exercise_mins / $exercise_goal) * 25, 25);
-$streak_score = min($streak, 25);
-$health_score = round($water_score + $cal_score + $exercise_score + $streak_score);
+$water_goal = $user_goals['water_goal'];
+$calorie_goal = $user_goals['calorie_goal'];
+$exercise_goal = $user_goals['exercise_goal'];
+$sleep_goal = $user_goals['sleep_goal'];
 
-if ($health_score < 40) {
+// --- Health Score Calculation ---
+$health_score = 0;
+if ($today_water > 0 && $today_calories > 0 && $today_exercise_mins > 0 && $sleep_hours > 0) {
+    $w_score = min(($today_water / max(1, $water_goal)) * 100, 100);
+    $c_score = min(($today_calories / max(1, $calorie_goal)) * 100, 100);
+    $e_score = min(($today_exercise_mins / max(1, $exercise_goal)) * 100, 100);
+    $s_score = min(($sleep_hours / max(1, $sleep_goal)) * 100, 100);
+    $health_score = round(($w_score + $c_score + $e_score + $s_score) / 4);
+}
+
+if ($health_score == 0) {
+    $score_msg = "Log all 4 metrics (water, calories, exercise, sleep) to get your health score! 📊";
+} else if ($health_score < 40) {
     $score_msg = "Let's get moving! 💪";
 } else if ($health_score < 60) {
     $score_msg = "Good start, keep going! 🙂";
@@ -145,7 +194,6 @@ if ($health_score < 40) {
 } else {
     $score_msg = "Excellent day! 🏆";
 }
-// --------------------------------
 
 require_once 'includes/header.php';
 ?>
