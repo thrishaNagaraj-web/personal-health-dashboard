@@ -48,11 +48,16 @@ require_once 'includes/header.php';
         <p style="color: var(--text-muted); font-size: 1.1rem;">Discover the best diet-friendly foods to reach your goals.</p>
     </div>
 
-    <!-- Search & Filter Area -->
+    <!-- Search & AI Area -->
     <div style="background: var(--surface); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 2rem; display: flex; flex-direction: column; gap: 1.5rem;">
-        <div style="position: relative;">
-            <input type="text" id="foodSearch" class="form-control" placeholder="Search foods (e.g. Protein, Chicken, Spinach)..." style="padding-left: 2.5rem;">
-            <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.2rem;">🔍</span>
+        <div style="display: flex; gap: 10px;">
+            <div style="position: relative; flex: 1;">
+                <input type="text" id="foodSearch" class="form-control" placeholder="Search guide or type a food to ask AI..." style="padding-left: 2.5rem; height: 50px;">
+                <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.2rem;">🔍</span>
+            </div>
+            <button id="askAI" class="btn btn-primary" style="white-space: nowrap; padding: 0 1.5rem; display: flex; align-items: center; gap: 8px;">
+                ✨ Ask AI
+            </button>
         </div>
         
         <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
@@ -60,6 +65,18 @@ require_once 'includes/header.php';
             <button class="btn btn-outline filter-btn" data-filter="veg">🥦 Vegetarian</button>
             <button class="btn btn-outline filter-btn" data-filter="nonveg">🍗 Non-Vegetarian</button>
         </div>
+    </div>
+
+    <!-- AI Result Card (Hidden by default) -->
+    <div id="aiResultCard" class="food-card" style="display: none; margin-bottom: 2.5rem; border-left: 4px solid var(--primary); background: rgba(79, 70, 229, 0.05); animation: slideIn 0.4s ease;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 1.5rem;">✨</span>
+                <h3 style="margin: 0; font-size: 1.25rem;">AI Nutrition Insight</h3>
+            </div>
+            <button onclick="document.getElementById('aiResultCard').style.display='none'" style="background: transparent; border: none; cursor: pointer; font-size: 1.2rem; color: var(--text-muted);">&times;</button>
+        </div>
+        <div id="aiResponseText" style="font-size: 1.05rem; line-height: 1.6; color: var(--text-main); white-space: pre-wrap;"></div>
     </div>
 
     <div id="foodGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; align-items: start;">
@@ -201,6 +218,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     searchInput.addEventListener('input', filterFoods);
+
+    // AI Food Search
+    const askAIBtn = document.getElementById('askAI');
+    const aiResultCard = document.getElementById('aiResultCard');
+    const aiResponseText = document.getElementById('aiResponseText');
+
+    askAIBtn.addEventListener('click', async () => {
+        const query = searchInput.value.trim();
+        if (!query) {
+            alert('Please enter a food name to ask AI.');
+            return;
+        }
+
+        askAIBtn.disabled = true;
+        askAIBtn.innerHTML = '⌛ Thinking...';
+        aiResultCard.style.display = 'block';
+        aiResponseText.innerHTML = 'AI is analyzing "' + query + '"...';
+
+        try {
+            const response = await fetch('food-ai.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ food: query })
+            });
+            const data = await response.json();
+            aiResponseText.innerHTML = data.reply;
+        } catch (error) {
+            aiResponseText.innerHTML = 'Failed to get AI details. Please try again.';
+        } finally {
+            askAIBtn.disabled = false;
+            askAIBtn.innerHTML = '✨ Ask AI';
+        }
+    });
 
     filterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
