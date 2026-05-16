@@ -251,6 +251,7 @@ require_once 'includes/header.php';
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 1rem;">
         
         <!-- AI Summary Card -->
+        <?php if ($summary !== "AI summary unavailable this week."): ?>
         <div class="card" style="border-left: 6px solid #8b5cf6; padding: 2rem; display: flex; flex-direction: column;">
             <h3 style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0;">🤖 Your Weekly Health Review</h3>
             <div style="flex: 1; font-size: 1.05rem; line-height: 1.6; color: var(--text-main);">
@@ -260,6 +261,7 @@ require_once 'includes/header.php';
                 Generated at <?= $generated_at ?>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Radar Chart Card -->
         <div class="card" style="display: flex; flex-direction: column; align-items: center; padding: 2rem;">
