@@ -17,24 +17,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_goals'])) {
     $sleep = filter_input(INPUT_POST, 'sleep_goal', FILTER_VALIDATE_FLOAT) ?: 8;
     $weight = filter_input(INPUT_POST, 'weight_goal', FILTER_VALIDATE_FLOAT);
     
-    $stmt = $pdo->prepare("INSERT INTO goals (user_id, water_goal, calorie_goal, exercise_goal, sleep_goal, weight_goal) 
-                           VALUES (?, ?, ?, ?, ?, ?)
-                           ON CONFLICT(user_id) DO UPDATE SET 
-                           water_goal = excluded.water_goal, 
-                           calorie_goal = excluded.calorie_goal, 
-                           exercise_goal = excluded.exercise_goal, 
-                           sleep_goal = excluded.sleep_goal, 
-                           weight_goal = excluded.weight_goal,
-                           updated_at = CURRENT_TIMESTAMP");
+    $stmt = $pdo->prepare("INSERT OR REPLACE INTO goals (user_id, water_goal, calorie_goal, exercise_goal, sleep_goal, weight_goal, updated_at) 
+                           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
     $stmt->execute([$user_id, $water, $calorie, $exercise, $sleep, $weight]);
+    
     $_SESSION['flash'] = 'Goals saved successfully!';
-    header("Location: goals.php");
+    header('Location: goals.php');
     exit;
 }
 
 $stmt = $pdo->prepare("SELECT * FROM goals WHERE user_id = ?");
 $stmt->execute([$user_id]);
-$goals = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['water_goal' => 2000, 'calorie_goal' => 2000, 'exercise_goal' => 30, 'sleep_goal' => 8, 'weight_goal' => null];
+$goals = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$goals) {
+    $stmt = $pdo->prepare("INSERT INTO goals (user_id, water_goal, calorie_goal, exercise_goal, sleep_goal) VALUES (?, 2000, 2000, 30, 8)");
+    $stmt->execute([$user_id]);
+    
+    $goals = [
+        'water_goal' => 2000,
+        'calorie_goal' => 2000,
+        'exercise_goal' => 30,
+        'sleep_goal' => 8,
+        'weight_goal' => null
+    ];
+}
 
 $water_goal = $goals['water_goal'];
 $calorie_goal = $goals['calorie_goal'];
@@ -64,10 +71,10 @@ $stmt->execute([$user_id]);
 $latest_weight = $stmt->fetchColumn();
 
 // Calculate %
-$water_pct    = min(round(($water_goal > 0 ? $today_water / $water_goal : 0) * 100), 100);
-$calorie_pct  = min(round(($calorie_goal > 0 ? $today_calories / $calorie_goal : 0) * 100), 100);
-$exercise_pct = min(round(($exercise_goal > 0 ? $today_exercise_mins / $exercise_goal : 0) * 100), 100);
-$sleep_pct    = min(round(($sleep_goal > 0 ? $last_sleep / $sleep_goal : 0) * 100), 100);
+$water_pct    = $water_goal > 0 ? min(100, round(($today_water / $water_goal) * 100)) : 0;
+$calorie_pct  = $calorie_goal > 0 ? min(100, round(($today_calories / $calorie_goal) * 100)) : 0;
+$exercise_pct = $exercise_goal > 0 ? min(100, round(($today_exercise_mins / $exercise_goal) * 100)) : 0;
+$sleep_pct    = $sleep_goal > 0 ? min(100, round(($last_sleep / $sleep_goal) * 100)) : 0;
 
 $weight_pct = 0;
 $weight_projection_msg = "Log more weight entries to see projection.";
@@ -89,7 +96,7 @@ if ($weight_goal !== null && $latest_weight !== false && $latest_weight !== null
         if (($direction === 'lose' && $latest_weight <= $first_weight) || 
             ($direction === 'gain' && $latest_weight >= $first_weight)) {
             if ($total_change_needed > 0) {
-                $weight_pct = min(round(($current_change / $total_change_needed) * 100), 100);
+                $weight_pct = min(100, round(($current_change / $total_change_needed) * 100));
             } else {
                 $weight_pct = 100;
             }
@@ -131,24 +138,11 @@ require_once 'includes/header.php';
 ?>
 
 <style>
-@property --pct {
-  syntax: '<number>';
-  initial-value: 0;
-  inherits: false;
-}
 .progress-ring {
   width: 130px; height: 130px;
   border-radius: 50%;
-  background: conic-gradient(
-    var(--color) calc(var(--pct) * 1%),
-    var(--border) 0
-  );
+  background: conic-gradient(var(--accent) calc(var(--pct) * 1%), transparent 0);
   display: flex; align-items: center; justify-content: center;
-  animation: ringFill 1.2s ease-out forwards;
-}
-@keyframes ringFill {
-  from { --pct: 0; }
-  to   { --pct: var(--target-pct); }
 }
 .ring-inner {
   width: 96px; height: 96px; border-radius: 50%;
@@ -157,7 +151,7 @@ require_once 'includes/header.php';
   align-items: center; justify-content: center;
   gap: 2px;
 }
-.ring-value { font-size: 1.4rem; font-weight: 700; color: var(--color); }
+.ring-value { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
 .ring-label { font-size: 0.7rem; color: var(--text-muted); 
               text-transform: uppercase; letter-spacing: 0.05em; }
 .ring-wrapper {
@@ -186,7 +180,7 @@ require_once 'includes/header.php';
         
         <div style="display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center;">
             <div class="ring-wrapper">
-                <div class="progress-ring" style="--target-pct: <?= $water_pct ?>; --color: #3498db;">
+                <div class="progress-ring" style="--pct: <?= $water_pct ?>; --accent: #3498db;">
                     <div class="ring-inner">
                         <span class="ring-value"><?= $water_pct ?>%</span>
                         <span class="ring-label">Water</span>
@@ -196,7 +190,7 @@ require_once 'includes/header.php';
             </div>
 
             <div class="ring-wrapper">
-                <div class="progress-ring" style="--target-pct: <?= $calorie_pct ?>; --color: #e67e22;">
+                <div class="progress-ring" style="--pct: <?= $calorie_pct ?>; --accent: #e67e22;">
                     <div class="ring-inner">
                         <span class="ring-value"><?= $calorie_pct ?>%</span>
                         <span class="ring-label">Calories</span>
@@ -206,7 +200,7 @@ require_once 'includes/header.php';
             </div>
 
             <div class="ring-wrapper">
-                <div class="progress-ring" style="--target-pct: <?= $exercise_pct ?>; --color: #2ecc71;">
+                <div class="progress-ring" style="--pct: <?= $exercise_pct ?>; --accent: #2ecc71;">
                     <div class="ring-inner">
                         <span class="ring-value"><?= $exercise_pct ?>%</span>
                         <span class="ring-label">Exercise</span>
@@ -216,7 +210,7 @@ require_once 'includes/header.php';
             </div>
 
             <div class="ring-wrapper">
-                <div class="progress-ring" style="--target-pct: <?= $sleep_pct ?>; --color: #8b5cf6;">
+                <div class="progress-ring" style="--pct: <?= $sleep_pct ?>; --accent: #8b5cf6;">
                     <div class="ring-inner">
                         <span class="ring-value"><?= $sleep_pct ?>%</span>
                         <span class="ring-label">Sleep</span>
@@ -227,7 +221,7 @@ require_once 'includes/header.php';
             
             <?php if ($weight_goal !== null): ?>
             <div class="ring-wrapper">
-                <div class="progress-ring" style="--target-pct: <?= $weight_pct ?>; --color: #14b8a6;">
+                <div class="progress-ring" style="--pct: <?= $weight_pct ?>; --accent: #14b8a6;">
                     <div class="ring-inner">
                         <span class="ring-value"><?= $weight_pct ?>%</span>
                         <span class="ring-label">Weight</span>
