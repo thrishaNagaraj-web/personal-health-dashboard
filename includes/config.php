@@ -1,13 +1,30 @@
 <?php
+// ─── Production error handling ───
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+error_reporting(E_ALL);
 
+// ─── Load .env file if present (for local dev) ───
+if (file_exists(__DIR__ . '/../.env')) {
+    foreach (file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        if ($line[0] !== '#' && strpos($line, '=') !== false) {
+            [$k, $v] = explode('=', $line, 2);
+            $_ENV[trim($k)] = trim($v);
+        }
+    }
+}
+
+// ─── Database connection (absolute path) ───
 try {
     $pdo = new PDO('sqlite:' . __DIR__ . '/../database.sqlite');
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
+    error_log("Database connection failed: " . $e->getMessage());
+    die("Database connection failed. Check server logs.");
 }
 
+// ─── Auto-create tables ───
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
