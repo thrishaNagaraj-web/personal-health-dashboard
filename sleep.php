@@ -1,7 +1,12 @@
 <?php
+session_save_path('/tmp');
+session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
-require_once 'includes/csrf.php';
 requireLogin();
 
 $user_id = $_SESSION['user_id'];
@@ -10,7 +15,7 @@ $messages = [];
 
 // Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_sleep'])) {
-    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
         die('Invalid request. Please go back and try again.');
     }
     $hours = filter_input(INPUT_POST, 'hours', FILTER_VALIDATE_FLOAT);
@@ -21,12 +26,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_sleep'])) {
     $log_date = $_POST['log_date'] ?? $today;
 
     if ($hours !== false && $quality >= 1 && $quality <= 5) {
-        $stmt = $pdo->prepare("INSERT INTO sleep_logs (user_id, hours, quality, log_date, note) 
-                               VALUES (?, ?, ?, ?, ?)
-                               ON CONFLICT(user_id, log_date) DO UPDATE SET 
-                               hours = excluded.hours, quality = excluded.quality, note = excluded.note");
-        $stmt->execute([$user_id, $hours, $quality, $log_date, $note]);
-        $messages[] = ['type' => 'success', 'text' => 'Sleep logged successfully!'];
+        try {
+            $stmt = $pdo->prepare("INSERT INTO sleep_logs (user_id, hours, quality, log_date, note) 
+                                   VALUES (?, ?, ?, ?, ?)
+                                   ON CONFLICT(user_id, log_date) DO UPDATE SET 
+                                   hours = excluded.hours, quality = excluded.quality, note = excluded.note");
+            $stmt->execute([$user_id, $hours, $quality, $log_date, $note]);
+            header('Location: sleep.php');
+            exit;
+        } catch (PDOException $e) {
+            $messages[] = ['type' => 'error', 'text' => 'Database error. Please try again.'];
+        }
     } else {
         $messages[] = ['type' => 'error', 'text' => 'Invalid input. Ensure hours and quality are correctly selected.'];
     }
@@ -35,16 +45,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_sleep'])) {
 // Handle Deletion
 if (isset($_GET['delete'])) {
     $del_id = (int)$_GET['delete'];
-    $stmt = $pdo->prepare("DELETE FROM sleep_logs WHERE id = ? AND user_id = ?");
-    $stmt->execute([$del_id, $user_id]);
+    try {
+        $stmt = $pdo->prepare("DELETE FROM sleep_logs WHERE id = ? AND user_id = ?");
+        $stmt->execute([$del_id, $user_id]);
+    } catch (PDOException $e) {}
     header("Location: sleep.php");
     exit;
 }
 
 // Calculate logic for KPI (Last 30 days)
-$stmt = $pdo->prepare("SELECT * FROM sleep_logs WHERE user_id = ? AND log_date >= date('now', '-30 days') ORDER BY log_date ASC");
-$stmt->execute([$user_id]);
-$logs = $stmt->fetchAll();
+try {
+    $stmt = $pdo->prepare("SELECT * FROM sleep_logs WHERE user_id = ? AND log_date >= date('now', '-30 days') ORDER BY log_date ASC");
+    $stmt->execute([$user_id]);
+    $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $logs = [];
+}
 
 $this_week_logs = array_filter($logs, fn($l) => strtotime($l['log_date']) >= strtotime('-7 days'));
 $avg_hours_week = count($this_week_logs) > 0 ? array_sum(array_column($this_week_logs, 'hours')) / count($this_week_logs) : 0;
@@ -102,7 +118,7 @@ $quality_emojis_short = [1 => '😴', 2 => '😐', 3 => '🙂', 4 => '😊', 5 =
         <div class="card" style="grid-column: 1 / -1;">
             <h3>Log Sleep</h3>
             <form method="POST" action="sleep.php">
-                <?= csrfField() ?>
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                 <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
                     <div class="form-group" style="flex: 1; min-width: 150px;">
                         <label>Date</label>
@@ -169,9 +185,10 @@ $quality_emojis_short = [1 => '😴', 2 => '😐', 3 => '🙂', 4 => '😊', 5 =
                         <th>Action</th>
                     </tr>
                     <?php 
-                    $history_stmt = $pdo->prepare("SELECT * FROM sleep_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 30");
-                    $history_stmt->execute([$user_id]);
-                    while ($row = $history_stmt->fetch()):
+                    try {
+                        $history_stmt = $pdo->prepare("SELECT * FROM sleep_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 30");
+                        $history_stmt->execute([$user_id]);
+                        while ($row = $history_stmt->fetch(PDO::FETCH_ASSOC)):
                     ?>
                     <tr>
                         <td><?= date('M d, Y', strtotime($row['log_date'])) ?></td>
@@ -182,7 +199,10 @@ $quality_emojis_short = [1 => '😴', 2 => '😐', 3 => '🙂', 4 => '😊', 5 =
                             <a href="sleep.php?delete=<?= $row['id'] ?>" class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-color: #ef4444; color: #ef4444;" onclick="return confirm('Delete this log?');">Delete</a>
                         </td>
                     </tr>
-                    <?php endwhile; ?>
+                    <?php 
+                        endwhile;
+                    } catch (PDOException $e) {} 
+                    ?>
                 </table>
             </div>
         </div>

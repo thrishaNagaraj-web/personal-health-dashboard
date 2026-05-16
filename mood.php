@@ -1,7 +1,12 @@
 <?php
+session_save_path('/tmp');
+session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
-require_once 'includes/csrf.php';
 requireLogin();
 
 $user_id = $_SESSION['user_id'];
@@ -10,7 +15,7 @@ $messages = [];
 
 // Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_mood'])) {
-    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+    if (!hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'] ?? '')) {
         die('Invalid request. Please go back and try again.');
     }
     $mood = filter_input(INPUT_POST, 'mood', FILTER_VALIDATE_INT);
@@ -18,12 +23,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_mood'])) {
     $log_date = $_POST['log_date'] ?? $today;
 
     if ($mood >= 1 && $mood <= 5) {
-        $stmt = $pdo->prepare("INSERT INTO mood_logs (user_id, mood, log_date, note) 
-                               VALUES (?, ?, ?, ?)
-                               ON CONFLICT(user_id, log_date) DO UPDATE SET 
-                               mood = excluded.mood, note = excluded.note");
-        $stmt->execute([$user_id, $mood, $log_date, $note]);
-        $messages[] = ['type' => 'success', 'text' => 'Mood logged successfully!'];
+        try {
+            $stmt = $pdo->prepare("INSERT INTO mood_logs (user_id, mood, log_date, note) 
+                                   VALUES (?, ?, ?, ?)
+                                   ON CONFLICT(user_id, log_date) DO UPDATE SET 
+                                   mood = excluded.mood, note = excluded.note");
+            $stmt->execute([$user_id, $mood, $log_date, $note]);
+            header('Location: mood.php');
+            exit;
+        } catch (PDOException $e) {
+            $messages[] = ['type' => 'error', 'text' => 'Database error. Please try again.'];
+        }
     } else {
         $messages[] = ['type' => 'error', 'text' => 'Please select a valid mood.'];
     }
@@ -32,16 +42,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_mood'])) {
 // Handle Deletion
 if (isset($_GET['delete'])) {
     $del_id = (int)$_GET['delete'];
-    $stmt = $pdo->prepare("DELETE FROM mood_logs WHERE id = ? AND user_id = ?");
-    $stmt->execute([$del_id, $user_id]);
+    try {
+        $stmt = $pdo->prepare("DELETE FROM mood_logs WHERE id = ? AND user_id = ?");
+        $stmt->execute([$del_id, $user_id]);
+    } catch (PDOException $e) {}
     header("Location: mood.php");
     exit;
 }
 
 // Fetch 30 days of data
-$stmt = $pdo->prepare("SELECT * FROM mood_logs WHERE user_id = ? AND log_date >= date('now', '-30 days') ORDER BY log_date ASC");
-$stmt->execute([$user_id]);
-$logs = $stmt->fetchAll();
+try {
+    $stmt = $pdo->prepare("SELECT * FROM mood_logs WHERE user_id = ? AND log_date >= date('now', '-30 days') ORDER BY log_date ASC");
+    $stmt->execute([$user_id]);
+    $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $logs = [];
+}
 
 // Good Days Streak (mood >= 4)
 $good_streak = 0;
@@ -60,7 +76,7 @@ for ($i = 0; $i < 30; $i++) {
             break;
         }
     }
-    if ($log['log_date'] === $d && $log['mood'] < 4) {
+    if ($found && $log['mood'] < 4) {
         break; // Streak broken structurally
     }
     if (!$found && $i > 0) {
@@ -185,7 +201,7 @@ require_once 'includes/header.php';
         <div class="card" style="grid-column: 1 / -1; text-align: center;">
             <h3>How are you feeling?</h3>
             <form method="POST" action="mood.php">
-                <?= csrfField() ?>
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
                 <input type="hidden" name="log_date" value="<?= $today ?>">
                 <div class="mood-selector">
                     <?php foreach($mood_emojis as $val => $emoji): ?>
@@ -238,9 +254,10 @@ require_once 'includes/header.php';
                         <th>Action</th>
                     </tr>
                     <?php 
-                    $history_stmt = $pdo->prepare("SELECT * FROM mood_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 30");
-                    $history_stmt->execute([$user_id]);
-                    while ($row = $history_stmt->fetch()):
+                    try {
+                        $history_stmt = $pdo->prepare("SELECT * FROM mood_logs WHERE user_id = ? ORDER BY log_date DESC LIMIT 30");
+                        $history_stmt->execute([$user_id]);
+                        while ($row = $history_stmt->fetch(PDO::FETCH_ASSOC)):
                     ?>
                     <tr>
                         <td><?= date('M d, Y', strtotime($row['log_date'])) ?></td>
@@ -250,7 +267,10 @@ require_once 'includes/header.php';
                             <a href="mood.php?delete=<?= $row['id'] ?>" class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border-color: #ef4444; color: #ef4444;" onclick="return confirm('Delete this log?');">Delete</a>
                         </td>
                     </tr>
-                    <?php endwhile; ?>
+                    <?php 
+                        endwhile;
+                    } catch (PDOException $e) {} 
+                    ?>
                 </table>
             </div>
         </div>
