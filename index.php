@@ -1,9 +1,8 @@
 <?php
-require_once 'includes/config.php';
+session_save_path('/tmp');
 session_start();
-if (isset($_SESSION['user_id'])) {
-    header('Location: dashboard.php'); exit;
-}
+require_once 'includes/config.php';
+if (isset($_SESSION['user_id'])) { header('Location: dashboard.php'); exit; }
 ?>
 <!DOCTYPE html>
 <html lang="en">
