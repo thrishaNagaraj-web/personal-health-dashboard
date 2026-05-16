@@ -39,7 +39,7 @@
             <li><a href="insights.php">🤖 Insights</a></li>
             <li><a href="goals.php">🎯 Goals</a></li>
             <li><a href="reports.php">📈 Reports</a></li>
-            <li><a href="deficit-foods.php">🥗 Food Guide</a></li>
+            <li><a href="food-guide.php">🥗 Food Guide</a></li>
             <li><a href="profile.php">👤 Profile</a></li>
             <li class="nav-logout"><a href="logout.php" class="btn btn-outline">Logout</a></li>
         </ul>
