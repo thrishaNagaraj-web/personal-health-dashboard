@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $ip = $_SERVER['REMOTE_ADDR'];
-    $window = date('Y-m-d H:i:s', strtotime('-15 minutes'));
+    $window = date('Y-m-d H:i:s', strtotime('-3 minutes'));
     
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND attempted_at > ?");
     $stmt->execute([$ip, $window]);
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     
     if ($attempts >= 5) {
-        $error = "Too many login attempts. Please wait 15 minutes and try again.";
+        $error = "Too many login attempts. Please wait 3 minutes and try again.";
     } elseif (empty($username) || empty($password)) {
         $error = "Please enter both username and password.";
         $pdo->prepare("INSERT INTO login_attempts (ip_address) VALUES (?)")->execute([$ip]);
