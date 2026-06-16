@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['log_sleep'])) {
     // Allow users to specify the date or default to today
     $log_date = $_POST['log_date'] ?? $today;
 
-    if ($hours !== false && $quality >= 1 && $quality <= 5) {
+    if ($hours !== false && $hours >= 0 && $hours <= 24 && $quality >= 1 && $quality <= 5) {
         try {
             $stmt = $pdo->prepare("INSERT INTO sleep_logs (user_id, hours, quality, log_date, note) 
                                    VALUES (?, ?, ?, ?, ?)
@@ -126,7 +126,7 @@ $quality_emojis_short = [1 => '😴', 2 => '😐', 3 => '🙂', 4 => '😊', 5 =
                     </div>
                     <div class="form-group" style="flex: 1; min-width: 150px;">
                         <label>Hours Slept</label>
-                        <input type="number" name="hours" class="form-control" step="0.5" min="0" max="24" required>
+                        <input type="number" name="hours" class="form-control" step="0.5" min="0" max="24" oninput="if(this.value > 24) this.value = 24;" required>
                     </div>
                 </div>
                 

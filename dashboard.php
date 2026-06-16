@@ -474,7 +474,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 <h4>How was your rest & mood?</h4>
                 <div class="ql-input-group">
                     <label>Sleep Hours</label>
-                    <input type="number" id="qlSleepHours" step="0.5" class="form-control" placeholder="Hours">
+                    <input type="number" id="qlSleepHours" step="0.5" min="0" max="24" oninput="if(this.value > 24) this.value = 24;" class="form-control" placeholder="Hours">
                 </div>
                 <label>Current Mood</label>
                 <div class="mood-selector" id="qlMoodSelector">

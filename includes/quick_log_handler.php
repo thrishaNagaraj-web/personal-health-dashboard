@@ -62,7 +62,7 @@ try {
             $mood = (int)$_POST['mood'];
             
             // Log Sleep
-            if ($hours > 0) {
+            if ($hours >= 0 && $hours <= 24) {
                 $stmt = $pdo->prepare("INSERT INTO sleep_logs (user_id, hours, quality, log_date) VALUES (?, ?, ?, ?)
                                        ON CONFLICT(user_id, log_date) DO UPDATE SET hours=excluded.hours, quality=excluded.quality");
                 $stmt->execute([$user_id, $hours, $quality, $log_date]);
