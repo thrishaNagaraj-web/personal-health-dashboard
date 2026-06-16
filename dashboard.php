@@ -465,7 +465,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 </div>
                 <div class="ql-input-group">
                     <label>Duration (mins)</label>
-                    <input type="number" id="qlExerciseDuration" class="form-control" placeholder="Minutes">
+                    <input type="number" id="qlExerciseDuration" class="form-control" min="1" max="9999" oninput="if(this.value.length > 4) this.value = this.value.slice(0, 4);" placeholder="Minutes">
                 </div>
             </div>
 

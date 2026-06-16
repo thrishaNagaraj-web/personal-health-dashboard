@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $calories_burned = (int)($_POST['calories_burned'] ?? 0);
     $log_date = $_POST['log_date'];
 
-    if (!empty($activity) && $duration_mins > 0 && !empty($log_date)) {
+    if (!empty($activity) && $duration_mins > 0 && $duration_mins <= 9999 && !empty($log_date)) {
         $stmt = $pdo->prepare("INSERT INTO exercise_logs (user_id, activity, duration_mins, calories_burned, log_date) VALUES (?, ?, ?, ?, ?)");
         if ($stmt->execute([$user_id, $activity, $duration_mins, $calories_burned > 0 ? $calories_burned : null, $log_date])) {
             $success = "Exercise logged successfully!";
@@ -49,7 +49,7 @@ require_once 'includes/header.php';
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <label for="duration_mins">Duration (mins)</label>
-                <input type="number" id="duration_mins" name="duration_mins" class="form-control" required>
+                <input type="number" id="duration_mins" name="duration_mins" class="form-control" min="1" max="9999" oninput="if(this.value.length > 4) this.value = this.value.slice(0, 4);" required>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <label for="calories_burned">Cals Burned (opt)</label>

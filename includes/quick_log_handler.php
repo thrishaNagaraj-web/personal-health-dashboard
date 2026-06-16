@@ -47,7 +47,7 @@ try {
         case 'log_exercise':
             $activity = trim($_POST['activity'] ?? '');
             $duration = (int)$_POST['duration'];
-            if (!empty($activity) && $duration > 0) {
+            if (!empty($activity) && $duration > 0 && $duration <= 9999) {
                 $stmt = $pdo->prepare("INSERT INTO exercise_logs (user_id, activity, duration_mins, log_date) VALUES (?, ?, ?, ?)");
                 $stmt->execute([$user_id, $activity, $duration, $log_date]);
                 echo json_encode(['success' => true]);
